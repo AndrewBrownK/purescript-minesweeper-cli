@@ -1,5 +1,5 @@
 
-# Sample Purescript Minesweeper CLI
+# Purescript Minesweeper CLI
 
 This is a sample Purescript project implementing Minesweeper in the NodeJS CLI.
 
