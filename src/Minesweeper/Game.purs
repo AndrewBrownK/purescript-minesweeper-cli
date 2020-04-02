@@ -15,7 +15,7 @@ import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (clear, log)
 import Effect.Random (randomInt)
-import Minesweeper.Model (CellState(..), Coord, GameAction(..), GameState, coordNeighbors, gridHeight, gridWidth, qtyBombs, xs, ys)
+import Minesweeper.Model (CellState(..), Config', Coord, GameAction(..), GameState, coordNeighbors)
 import Minesweeper.Render (printGameState, printHelp)
 import Node.Process (exit)
 import Node.ReadLine (Interface)
@@ -29,16 +29,17 @@ import Node.ReadLine.Aff (prompt)
 type LoopState =
   { gameState :: GameState
   , consoleInterface :: Interface
+  , config :: Config'
   }
 
-startGame :: Interface -> Aff Unit
-startGame consoleInterface = do
+startGame :: Config' -> Interface -> Aff Unit
+startGame config consoleInterface = do
   let
     defaultCell = Hidden { bomb: false, flagged: false }
-    grid = foldr (\y m -> foldr (\x n -> Map.insert { x, y } defaultCell n) m xs) Map.empty ys
-    gameState = { firstRevealDone: false, grid, lost: false, hiddenCells: gridHeight * gridWidth }
-  printGameState gameState
-  loop { gameState, consoleInterface }
+    grid = foldr (\y m -> foldr (\x n -> Map.insert { x, y } defaultCell n) m config.xs) Map.empty config.ys
+    gameState = { firstRevealDone: false, grid, lost: false, hiddenCells: config.gridHeight * config.gridWidth }
+  printGameState config gameState
+  loop { gameState, consoleInterface, config }
 
 loop :: LoopState -> Aff Unit
 loop loopState = do
@@ -70,27 +71,33 @@ interpretInput line = fromMaybe Help do
 
 handleAction :: LoopState -> GameAction -> Aff Unit
 handleAction _         Quit = log "Thank you for playing! Bye-bye." <> (liftEffect $ exit 0)
-handleAction loopState Restart = startGame loopState.consoleInterface
+handleAction loopState Restart = startGame loopState.config loopState.consoleInterface
 handleAction loopState Help = printHelp <> loop loopState
-handleAction loopState (Flag coord) = do
-  let newState = flagCell coord loopState.gameState
-  liftEffect clear
-  printGameState newState
-  loop $ loopState { gameState = newState }
-handleAction loopState (Reveal coord) = case loopState.gameState of
-  { lost: true } -> loop loopState
-  { firstRevealDone: false } -> do
-    newState <- initializeBombs coord loopState.gameState
-    handleAction (loopState { gameState = newState }) (Reveal coord)
-  _ -> do
-    let newState = revealCell coord loopState.gameState
+handleAction loopState (Flag coord@{ x, y }) =
+  if (x < 0 || x >= loopState.config.gridWidth || y < 0 || y >= loopState.config.gridHeight)
+  then printHelp <> loop loopState
+  else do
+    let newState = flagCell coord loopState.gameState
     liftEffect clear
-    printGameState newState
-    if newState.lost
-      then handleLoss loopState
-      else if (newState.hiddenCells <= qtyBombs)
-        then handleWin loopState
-        else loop $ loopState { gameState = newState }
+    printGameState loopState.config newState
+    loop $ loopState { gameState = newState }
+handleAction loopState (Reveal coord@{ x, y }) =
+  if (x < 0 || x >= loopState.config.gridWidth || y < 0 || y >= loopState.config.gridHeight)
+  then printHelp <> loop loopState
+  else case loopState.gameState of
+    { lost: true } -> loop loopState
+    { firstRevealDone: false } -> do
+      newState <- initializeBombs loopState.config coord loopState.gameState
+      handleAction (loopState { gameState = newState }) (Reveal coord)
+    _ -> do
+      let newState = revealCell loopState.config coord loopState.gameState
+      liftEffect clear
+      printGameState loopState.config newState
+      if newState.lost
+        then handleLoss loopState
+        else if (newState.hiddenCells <= loopState.config.qtyMines)
+          then handleWin loopState
+          else loop $ loopState { gameState = newState }
 
 
 --
@@ -101,10 +108,9 @@ handleAction loopState (Reveal coord) = case loopState.gameState of
 --
 
 
-initializeBombs :: Coord -> GameState -> Aff GameState
-initializeBombs { x, y } gameState | x < 0 || x >= gridWidth || y < 0 || y >= gridHeight = pure gameState
-initializeBombs coord gameState = do
-  bombCoords <- createBombCoords coord Set.empty
+initializeBombs :: Config' -> Coord -> GameState -> Aff GameState
+initializeBombs config coord gameState = do
+  bombCoords <- createBombCoords config coord Set.empty
   let grid = foldr setBomb gameState.grid bombCoords
   pure { firstRevealDone: true, grid, lost: false, hiddenCells: gameState.hiddenCells }
 
@@ -117,15 +123,15 @@ setBomb coord map = fromMaybe map do
     _ -> Nothing
 
 
-createBombCoords :: Coord -> Set Coord -> Aff (Set Coord)
-createBombCoords forbidden existing = let
+createBombCoords :: Config' -> Coord -> Set Coord -> Aff (Set Coord)
+createBombCoords config forbidden existing = let
   filtered = Set.delete forbidden existing
-  in case (Set.size filtered < qtyBombs) of
+  in case (Set.size filtered < config.qtyMines) of
     false -> pure filtered
     true -> do
-      x <- liftEffect $ randomInt 0 (gridWidth-1)
-      y <- liftEffect $ randomInt 0 (gridHeight-1)
-      createBombCoords forbidden $ Set.insert { x, y } filtered
+      x <- liftEffect $ randomInt 0 (config.gridWidth-1)
+      y <- liftEffect $ randomInt 0 (config.gridHeight-1)
+      createBombCoords config forbidden $ Set.insert { x, y } filtered
 
 
 --
@@ -137,9 +143,8 @@ countBomb (Hidden { bomb: true }) = 1
 countBomb Exploded = 1
 countBomb _ = 0
 
-revealCell :: Coord -> GameState -> GameState
-revealCell { x, y } gameState | x < 0 || x >= gridWidth || y < 0 || y >= gridHeight = gameState
-revealCell coord gameState = fromMaybe gameState do
+revealCell :: Config' -> Coord -> GameState -> GameState
+revealCell config coord gameState = fromMaybe gameState do
   cellState <- lookup coord gameState.grid
   pure case cellState of
     Exploded -> gameState
@@ -152,11 +157,11 @@ revealCell coord gameState = fromMaybe gameState do
       bombNeighbors = foldr (\adjacentState count -> count + countBomb adjacentState) 0 adjacentCellStates
       grid = Map.insert coord (Revealed { bombNeighbors }) gameState.grid
       newGameState = { firstRevealDone: true, grid, lost: false, hiddenCells: gameState.hiddenCells - 1 }
-      newNewGameState = if (newGameState.hiddenCells <= qtyBombs)
+      newNewGameState = if (newGameState.hiddenCells <= config.qtyMines)
         then revealFlags newGameState
         else newGameState
       in case bombNeighbors of
-          0 -> foldr revealCell newNewGameState adjacentCoords
+          0 -> foldr (revealCell config) newNewGameState adjacentCoords
           _ -> newNewGameState
 
 --

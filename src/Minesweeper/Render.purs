@@ -9,7 +9,7 @@ import Data.String (length)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
 import Effect.Class.Console (clear, log)
-import Minesweeper.Model (CellState(..), GameState, xs, ys)
+import Minesweeper.Model (CellState(..), Config', GameState)
 
 
 printIntroduction :: Aff Unit
@@ -36,17 +36,17 @@ showCell (Revealed { bombNeighbors }) = " " <> show bombNeighbors <> " "
 showCell Exploded = " * "
 
 
-showRow :: GameState -> Int -> String
-showRow gameState y =
-  padYAxis y <> foldl (\str x -> append str $ fromMaybe "[ ]" $ showCell <$> lookup { x, y } gameState.grid) "" xs
+showRow :: Config' -> GameState -> Int -> String
+showRow config gameState y =
+  padYAxis y <> foldl (\str x -> append str $ fromMaybe "[ ]" $ showCell <$> lookup { x, y } gameState.grid) "" config.xs
 
-printGameState :: GameState -> Aff Unit
-printGameState gameState = do
+printGameState :: Config'-> GameState -> Aff Unit
+printGameState config gameState = do
   liftEffect clear
   printIntroduction
   printHelp
-  foldr (\y aff -> append aff $ log $ showRow gameState y) (pure unit) ys
-  log $ "   " <> foldMap padXAxis xs
+  foldr (\y aff -> append aff $ log $ showRow config gameState y) (pure unit) config.ys
+  log $ "   " <> foldMap padXAxis config.xs
   log ""
 
 

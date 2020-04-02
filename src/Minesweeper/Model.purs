@@ -4,29 +4,23 @@ import Prelude
 
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
-import Data.List (List, fromFoldable, range)
+import Data.List (List, fromFoldable)
 import Data.Map (Map)
 
 
+data Config = Config
+  { gridWidth :: Int
+  , gridHeight :: Int
+  , qtyMines :: Int
+  }
 
-
-
-gridWidth :: Int
-gridWidth = 10
-
-gridHeight :: Int
-gridHeight = 10
-
-qtyBombs :: Int
-qtyBombs = 10
-
-
-
-xs :: List Int
-xs = range 0 (gridWidth - 1)
-
-ys :: List Int
-ys = range 0 (gridHeight - 1)
+type Config' =
+  { gridWidth :: Int
+  , gridHeight :: Int
+  , qtyMines :: Int
+  , xs :: List Int
+  , ys :: List Int
+  }
 
 
 
