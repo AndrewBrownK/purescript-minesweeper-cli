@@ -3,6 +3,8 @@
 
 This is a sample Purescript project implementing Minesweeper in the NodeJS CLI.
 
+![](demo.gif)
+
 ## Prerequisites
 
 Ensure you have [`node`, `npm`](https://github.com/nvm-sh/nvm/blob/master/README.md), [`purescript`, and `spago`](https://github.com/purescript/documentation/blob/master/guides/Getting-Started.md) installed.
