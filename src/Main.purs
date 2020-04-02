@@ -2,23 +2,49 @@ module Main where
 
 import Prelude
 
-import Data.List (range)
+import Data.Either (Either(..))
+import Data.List (foldMap, range)
+import Data.Validation.Semigroup (invalid, unV, V(..))
 import Effect (Effect)
 import Effect.Aff (launchAff_)
-import Effect.Class (liftEffect)
+import Effect.Class.Console (log)
 import Minesweeper.Game (startGame)
-import Minesweeper.Model (Config(..))
+import Minesweeper.Model (Config(..), Config')
 import Node.ReadLine (createConsoleInterface, noCompletion)
-import Options.Applicative (Parser, ParserInfo(..), execParser, help, helper, info, int, long, metavar, option, progDesc, short, showDefault, value, (<**>))
+import Options.Applicative (Parser, ParserInfo, execParser, help, helper, info, int, long, metavar, option, progDesc, short, showDefault, value, (<**>))
+import Record (merge)
 
 
 
 main :: Effect Unit
 main = do
-  (Config { gridWidth, gridHeight, qtyMines }) <- execParser configInfo
-  consoleInterface <- createConsoleInterface noCompletion
-  let config = { gridWidth, gridHeight, qtyMines, xs: range 0 (gridWidth - 1), ys: range 0 (gridHeight - 1) }
-  launchAff_ $ startGame config consoleInterface
+  baseConfig <- execParser configInfo
+  furtherValidation baseConfig \resultConfig -> do
+    consoleInterface <- createConsoleInterface noCompletion
+    launchAff_ $ startGame resultConfig consoleInterface
+
+
+furtherValidation :: Config -> (Config' -> Effect Unit) -> Effect Unit
+furtherValidation (Config config) andThen = unV
+    (\errs -> foldMap log errs)
+    (\c -> andThen $ merge c { xs: range 0 (c.gridWidth - 1), ys: range 0 (c.gridHeight - 1) })
+    $ { gridWidth: _, gridHeight: _, qtyMines: _}
+      <$> checkWidth config.gridWidth
+      <*> checkHeight config.gridHeight
+      <*> checkQtyMines config.gridWidth config.gridHeight config.qtyMines
+  where
+    checkWidth w =
+      if w <= 0 then invalid ["The width must be greater than 0."]
+      else if w > 99 then invalid ["The width must be less than 99."]
+      else V $ Right w
+    checkHeight h =
+      if h <= 0 then invalid ["The height must be greater than 0."]
+      else if h > 99 then invalid ["The height must be less than 99."]
+      else V $ Right h
+    checkQtyMines w h m =
+      if m < 0 then invalid ["The number of mines cannot be negative."]
+      else if m >= (w * h) then invalid ["There are too many mines (" <> show m <> ") for the provided area " <> show w <> " x " <> show h <> "."]
+      else V $ Right m
 
 
 
