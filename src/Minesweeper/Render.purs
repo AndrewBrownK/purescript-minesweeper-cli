@@ -12,12 +12,15 @@ import Effect.Class.Console (clear, log)
 import Minesweeper.Model (CellState(..), Config', GameState)
 
 
+-- | Print an introduction blurb.
 printIntroduction :: Aff Unit
 printIntroduction = do
   log "Welcome to Minesweeper!"
   log "There is grid of x y coordinates."
   log "The x-axis is horizontal, the y-axis is vertical."
 
+
+-- | Print out some help on how to play the game.
 printHelp :: Aff Unit
 printHelp = do
   log ""
@@ -28,6 +31,7 @@ printHelp = do
   log ""
 
 
+-- | Render a grid cell.
 showCell :: CellState -> String
 showCell (Hidden { flagged: true }) = "(F)"
 showCell (Hidden { flagged: false }) = "[ ]"
@@ -36,10 +40,13 @@ showCell (Revealed { bombNeighbors }) = " " <> show bombNeighbors <> " "
 showCell Exploded = " * "
 
 
+-- | Render a grid row.
 showRow :: Config' -> GameState -> Int -> String
 showRow config gameState y =
   padYAxis y <> foldl (\str x -> append str $ fromMaybe "[ ]" $ showCell <$> lookup { x, y } gameState.grid) "" config.xs
 
+
+-- | Render a game state.
 printGameState :: Config'-> GameState -> Aff Unit
 printGameState config gameState = do
   liftEffect clear
@@ -50,6 +57,7 @@ printGameState config gameState = do
   log ""
 
 
+-- | Pad out the formatting/spacing of the the Y axis indices.
 padYAxis :: Int -> String
 padYAxis i = let
   str = show i <> " "
@@ -59,6 +67,8 @@ padYAxis i = let
     3 -> " " <> str
     _ -> str
 
+
+-- | Pad out the formatting/spacing of the X axis indices.
 padXAxis :: Int -> String
 padXAxis i = let
   str = show i

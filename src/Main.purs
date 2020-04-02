@@ -17,7 +17,12 @@ import Options.Applicative (Parser, ParserInfo, execParser, help, helper, info, 
 import Record (merge)
 
 
-
+-- | This is the main function. We start by collecting our configuration parameters.
+-- | We then perform data specific validation (beyond the type validation provided
+-- | by the library). Once our config is ascertained, we launch the console
+-- | interface, and start the game in an Aff (Asynchronous Effects) Monad.
+-- | The Aff Monad allows for asynchronous code (e.g. promises in vanilla js)
+-- | to be written very plainly in do notation.
 main :: Effect Unit
 main = do
   baseConfig <- execParser configInfo
@@ -25,7 +30,10 @@ main = do
     consoleInterface <- createConsoleInterface completer
     launchAff_ $ startGame validConfig consoleInterface
 
-
+-- | Here we conduct further validation of the program options. The grid must
+-- | have positive dimesnions, obviously. Less obvious is that there are maximum
+-- | dimension limits to keep the cli formatting simple. Lastly, we need at least
+-- | one tile to not have a mine on it, which puts a limit on the number of mines.
 furtherValidation :: Config -> (Config' -> Effect Unit) -> Effect Unit
 furtherValidation (Config config) andThen = unV
     (\errs -> foldMap log errs)
@@ -48,13 +56,11 @@ furtherValidation (Config config) andThen = unV
       else if m >= (w * h) then invalid ["There are too many mines (" <> show m <> ") for the provided area " <> show w <> " x " <> show h <> "."]
       else V $ Right m
 
-
-
-
+-- | Some config options information.
 configInfo :: ParserInfo Config
 configInfo = info (configParser <**> helper) (progDesc "Play minesweeper on the command line.")
 
-
+-- | The parser for the program options.
 configParser :: Parser Config
 configParser = ado
   gridWidth <- option int
@@ -81,11 +87,10 @@ configParser = ado
     <> value 10
     <> metavar "INT"
     )
-
   in Config { gridWidth, gridHeight, qtyMines }
 
 
-
+-- | The completer for the minesweeper game commands.
 completer :: Completer
 completer input = let
   match = find (startsWith input) ["show ", "flag ", "quit ", "restart ", "help "]
