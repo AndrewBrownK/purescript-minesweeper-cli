@@ -21,8 +21,8 @@ printIntroduction = do
 printHelp :: Aff Unit
 printHelp = do
   log ""
-  log "Reveal a cell by typing \"reveal x y\" where x and y form coordinates in the grid."
-  log "Flag a cell as a bomb by typing \"flag x y\" where x and y form coordinates in the grid."
+  log "Show a cell by typing \"show x y\" where x and y form coordinates in the grid."
+  log "Flag a cell as a mine by typing \"flag x y\" where x and y form coordinates in the grid."
   log "Restart a new game by typing \"restart\""
   log "Quit by typing \"quit\""
   log ""

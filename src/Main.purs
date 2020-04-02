@@ -3,14 +3,16 @@ module Main where
 import Prelude
 
 import Data.Either (Either(..))
-import Data.List (foldMap, range)
+import Data.List (find, foldMap, range)
+import Data.Maybe (Maybe(..))
+import Data.String.Utils (startsWith)
 import Data.Validation.Semigroup (invalid, unV, V(..))
 import Effect (Effect)
 import Effect.Aff (launchAff_)
 import Effect.Class.Console (log)
 import Minesweeper.Game (startGame)
 import Minesweeper.Model (Config(..), Config')
-import Node.ReadLine (createConsoleInterface, noCompletion)
+import Node.ReadLine (Completer, createConsoleInterface)
 import Options.Applicative (Parser, ParserInfo, execParser, help, helper, info, int, long, metavar, option, progDesc, short, showDefault, value, (<**>))
 import Record (merge)
 
@@ -19,9 +21,9 @@ import Record (merge)
 main :: Effect Unit
 main = do
   baseConfig <- execParser configInfo
-  furtherValidation baseConfig \resultConfig -> do
-    consoleInterface <- createConsoleInterface noCompletion
-    launchAff_ $ startGame resultConfig consoleInterface
+  furtherValidation baseConfig \validConfig -> do
+    consoleInterface <- createConsoleInterface completer
+    launchAff_ $ startGame validConfig consoleInterface
 
 
 furtherValidation :: Config -> (Config' -> Effect Unit) -> Effect Unit
@@ -84,8 +86,12 @@ configParser = ado
 
 
 
-
-
+completer :: Completer
+completer input = let
+  match = find (startsWith input) ["show ", "flag ", "quit ", "restart ", "help "]
+  in case match of
+    Just m -> pure { completions: [m], matched: input }
+    Nothing -> pure { completions: [], matched: ""}
 
 
 

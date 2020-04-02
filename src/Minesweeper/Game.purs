@@ -53,7 +53,7 @@ interpretInput line = fromMaybe Help do
   case toLower command of
     "quit" -> Just Quit
     "restart" -> Just Restart
-    "reveal" -> do
+    "show" -> do
       twoInts <- readTwoInts lineElements
       Just $ Reveal twoInts
     "flag" -> do
