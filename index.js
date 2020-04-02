@@ -8347,7 +8347,7 @@ var PS = {};
       if (v instanceof Minesweeper_Model.Exploded) {
           return " * ";
       };
-      throw new Error("Failed pattern match at Minesweeper.Render (line 31, column 1 - line 31, column 32): " + [ v.constructor.name ]);
+      throw new Error("Failed pattern match at Minesweeper.Render (line 35, column 1 - line 35, column 32): " + [ v.constructor.name ]);
   };
   var printIntroduction = Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("Welcome to Minesweeper!"))(function () {
       return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("There is grid of x y coordinates."))(function () {
@@ -8356,7 +8356,7 @@ var PS = {};
   });
   var printHelp = Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)(""))(function () {
       return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("Show a cell by typing \"show x y\" where x and y form coordinates in the grid."))(function () {
-          return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("Flag a cell as a bomb by typing \"flag x y\" where x and y form coordinates in the grid."))(function () {
+          return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("Flag a cell as a mine by typing \"flag x y\" where x and y form coordinates in the grid."))(function () {
               return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("Restart a new game by typing \"restart\""))(function () {
                   return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("Quit by typing \"quit\""))(function () {
                       return Effect_Class_Console.log(Effect_Aff.monadEffectAff)("");
@@ -8595,6 +8595,11 @@ var PS = {};
           }));
       };
   };
+  var isCoordInBounds = function (loopState) {
+      return function (v) {
+          return v.x < 0 || (v.x >= loopState.config.gridWidth || (v.y < 0 || v.y >= loopState.config.gridHeight));
+      };
+  };
   var interpretInput = function (line) {
       var readTwoInts = function (args) {
           return Control_Bind.bind(Data_Maybe.bindMaybe)(Data_Array.index(args)(1))(function (x$prime) {
@@ -8687,6 +8692,14 @@ var PS = {};
           }));
       };
   };
+  var handleFlag = function (loopState) {
+      return function (coord) {
+          var newState = flagCell(coord)(loopState.gameState);
+          return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class.liftEffect(Effect_Aff.monadEffectAff)(Effect_Class_Console.clear(Effect_Class.monadEffectEffect)))(function () {
+              return Minesweeper_Render.printGameState(loopState.config)(newState);
+          });
+      };
+  };
   var explode = function (v) {
       if (v instanceof Minesweeper_Model.Hidden && v.value0.bomb) {
           return Minesweeper_Model.Exploded.value;
@@ -8727,7 +8740,7 @@ var PS = {};
                       });
                   });
               };
-              throw new Error("Failed pattern match at Minesweeper.Game (line 129, column 6 - line 134, column 71): " + [ v.constructor.name ]);
+              throw new Error("Failed pattern match at Minesweeper.Game (line 159, column 6 - line 164, column 71): " + [ v.constructor.name ]);
           };
       };
   };
@@ -8804,8 +8817,8 @@ var PS = {};
                               hiddenCells: gameState.hiddenCells - 1 | 0
                           };
                           var newNewGameState = (function () {
-                              var $40 = newGameState.hiddenCells <= config.qtyMines;
-                              if ($40) {
+                              var $44 = newGameState.hiddenCells <= config.qtyMines;
+                              if ($44) {
                                   return revealFlags(newGameState);
                               };
                               return newGameState;
@@ -8815,7 +8828,7 @@ var PS = {};
                           };
                           return newNewGameState;
                       };
-                      throw new Error("Failed pattern match at Minesweeper.Game (line 149, column 8 - line 165, column 31): " + [ cellState.constructor.name ]);
+                      throw new Error("Failed pattern match at Minesweeper.Game (line 183, column 8 - line 199, column 31): " + [ cellState.constructor.name ]);
                   })());
               }));
           };
@@ -8872,6 +8885,39 @@ var PS = {};
           });
       });
   };
+  var handleReveal = function (loopState) {
+      return function (coord) {
+          if (loopState.gameState.lost) {
+              return loop(loopState);
+          };
+          if (!loopState.gameState.firstRevealDone) {
+              return Control_Bind.bind(Effect_Aff.bindAff)(initializeBombs(loopState.config)(coord)(loopState.gameState))(function (newState) {
+                  return handleReveal({
+                      gameState: newState,
+                      consoleInterface: loopState.consoleInterface,
+                      config: loopState.config
+                  })(coord);
+              });
+          };
+          var newState = revealCell(loopState.config)(coord)(loopState.gameState);
+          return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class.liftEffect(Effect_Aff.monadEffectAff)(Effect_Class_Console.clear(Effect_Class.monadEffectEffect)))(function () {
+              return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Minesweeper_Render.printGameState(loopState.config)(newState))(function () {
+                  if (newState.lost) {
+                      return handleLoss(loopState);
+                  };
+                  var $51 = newState.hiddenCells <= loopState.config.qtyMines;
+                  if ($51) {
+                      return handleWin(loopState);
+                  };
+                  return loop({
+                      gameState: newState,
+                      consoleInterface: loopState.consoleInterface,
+                      config: loopState.config
+                  });
+              });
+          });
+      };
+  };
   var handleLoss = function (loopState) {
       return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("Sorry, you lose :("))(function () {
           return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class_Console.log(Effect_Aff.monadEffectAff)("Press enter to restart."))(function () {
@@ -8889,61 +8935,13 @@ var PS = {};
           if (v1 instanceof Minesweeper_Model.Restart) {
               return startGame(v.config)(v.consoleInterface);
           };
-          if (v1 instanceof Minesweeper_Model.Help) {
-              return Data_Semigroup.append(Effect_Aff.semigroupAff(Data_Semigroup.semigroupUnit))(Minesweeper_Render.printHelp)(loop(v));
+          if (v1 instanceof Minesweeper_Model.Flag && isCoordInBounds(v)(v1.value0)) {
+              return handleFlag(v)(v1.value0);
           };
-          if (v1 instanceof Minesweeper_Model.Flag) {
-              var $45 = v1.value0.x < 0 || (v1.value0.x >= v.config.gridWidth || (v1.value0.y < 0 || v1.value0.y >= v.config.gridHeight));
-              if ($45) {
-                  return Data_Semigroup.append(Effect_Aff.semigroupAff(Data_Semigroup.semigroupUnit))(Minesweeper_Render.printHelp)(loop(v));
-              };
-              var newState = flagCell(v1.value0)(v.gameState);
-              return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class.liftEffect(Effect_Aff.monadEffectAff)(Effect_Class_Console.clear(Effect_Class.monadEffectEffect)))(function () {
-                  return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Minesweeper_Render.printGameState(v.config)(newState))(function () {
-                      return loop({
-                          gameState: newState,
-                          consoleInterface: v.consoleInterface,
-                          config: v.config
-                      });
-                  });
-              });
+          if (v1 instanceof Minesweeper_Model.Reveal && isCoordInBounds(v)(v1.value0)) {
+              return handleReveal(v)(v1.value0);
           };
-          if (v1 instanceof Minesweeper_Model.Reveal) {
-              var $49 = v1.value0.x < 0 || (v1.value0.x >= v.config.gridWidth || (v1.value0.y < 0 || v1.value0.y >= v.config.gridHeight));
-              if ($49) {
-                  return Data_Semigroup.append(Effect_Aff.semigroupAff(Data_Semigroup.semigroupUnit))(Minesweeper_Render.printHelp)(loop(v));
-              };
-              if (v.gameState.lost) {
-                  return loop(v);
-              };
-              if (!v.gameState.firstRevealDone) {
-                  return Control_Bind.bind(Effect_Aff.bindAff)(initializeBombs(v.config)(v1.value0)(v.gameState))(function (newState) {
-                      return handleAction({
-                          gameState: newState,
-                          consoleInterface: v.consoleInterface,
-                          config: v.config
-                      })(new Minesweeper_Model.Reveal(v1.value0));
-                  });
-              };
-              var newState = revealCell(v.config)(v1.value0)(v.gameState);
-              return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Effect_Class.liftEffect(Effect_Aff.monadEffectAff)(Effect_Class_Console.clear(Effect_Class.monadEffectEffect)))(function () {
-                  return Control_Bind.discard(Control_Bind.discardUnit)(Effect_Aff.bindAff)(Minesweeper_Render.printGameState(v.config)(newState))(function () {
-                      if (newState.lost) {
-                          return handleLoss(v);
-                      };
-                      var $54 = newState.hiddenCells <= v.config.qtyMines;
-                      if ($54) {
-                          return handleWin(v);
-                      };
-                      return loop({
-                          gameState: newState,
-                          consoleInterface: v.consoleInterface,
-                          config: v.config
-                      });
-                  });
-              });
-          };
-          throw new Error("Failed pattern match at Minesweeper.Game (line 72, column 1 - line 72, column 52): " + [ v.constructor.name, v1.constructor.name ]);
+          return Data_Semigroup.append(Effect_Aff.semigroupAff(Data_Semigroup.semigroupUnit))(Minesweeper_Render.printHelp)(loop(v));
       };
   };
   var coerceRestartOrQuit = function (loopState) {
@@ -13463,7 +13461,7 @@ var PS = {};
               matched: ""
           });
       };
-      throw new Error("Failed pattern match at Main (line 92, column 6 - line 94, column 52): " + [ match.constructor.name ]);
+      throw new Error("Failed pattern match at Main (line 97, column 6 - line 99, column 52): " + [ match.constructor.name ]);
   };
   var main = function __do() {
       var baseConfig = Options_Applicative_Extra.execParser(configInfo)();
