@@ -48,12 +48,12 @@ coordNeighbors { x, y } = fromFoldable
   ]
 
 -- | This is the fundamental game state. The bombs don't exist until after the
--- | first reveal, which is why we have firstRevealDone. We store the mine field
+-- | first reveal, which is why we have bombsInitialized. We store the mine field
 -- | itself in the grid. lost indicates if the game has been lost. hiddenCells
 -- | counts down as cells are revealed, and helps us detect the win condition
 -- | where only bombs are left hidden.
 type GameState =
-  { firstRevealDone :: Boolean
+  { bombsInitialized :: Boolean
   , grid :: Map Coord CellState
   , lost :: Boolean
   , hiddenCells :: Int

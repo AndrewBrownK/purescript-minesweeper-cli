@@ -44,7 +44,7 @@ startGame config consoleInterface = do
   let
     defaultCell = Hidden { bomb: false, flagged: false }
     grid = foldr (\y m -> foldr (\x n -> Map.insert { x, y } defaultCell n) m config.xs) Map.empty config.ys
-    gameState = { firstRevealDone: false, grid, lost: false, hiddenCells: config.gridHeight * config.gridWidth }
+    gameState = { bombsInitialized: false, grid, lost: false, hiddenCells: config.gridHeight * config.gridWidth }
   printGameState config gameState
   loop { gameState, consoleInterface, config }
 
@@ -95,7 +95,7 @@ handleAction loopState _ = printHelp <> loop loopState
 
 -- | Check that a command/action coordinate is actually in-bounds of the grid.
 isCoordInBounds :: LoopState -> Coord -> Boolean
-isCoordInBounds loopState { x, y } = (x < 0 || x >= loopState.config.gridWidth || y < 0 || y >= loopState.config.gridHeight)
+isCoordInBounds loopState { x, y } = (x >= 0 || x < loopState.config.gridWidth || y >= 0 || y < loopState.config.gridHeight)
 
 -- | Handle the Flag action. This sets a flag on a cell to prevent accidentally
 -- | showing/revealing it and triggering a mine.
@@ -104,6 +104,7 @@ handleFlag loopState coord= do
     let newState = flagCell coord loopState.gameState
     liftEffect clear
     printGameState loopState.config newState
+    loop $ loopState { gameState = newState }
 
 -- | Handle the show/reveal action. This is required to win the game, but also
 -- | risks losing the game if you click on a mine. The first time this action is
@@ -114,7 +115,7 @@ handleFlag loopState coord= do
 handleReveal :: LoopState -> Coord -> Aff Unit
 handleReveal loopState coord = case loopState.gameState of
     { lost: true } -> loop loopState
-    { firstRevealDone: false } -> do
+    { bombsInitialized: false } -> do
       newState <- initializeBombs loopState.config coord loopState.gameState
       handleReveal (loopState { gameState = newState }) coord
     _ -> do
@@ -141,7 +142,7 @@ initializeBombs :: Config' -> Coord -> GameState -> Aff GameState
 initializeBombs config coord gameState = do
   bombCoords <- createBombCoords config coord Set.empty
   let grid = foldr setBomb gameState.grid bombCoords
-  pure { firstRevealDone: true, grid, lost: false, hiddenCells: gameState.hiddenCells }
+  pure { bombsInitialized: true, grid, lost: false, hiddenCells: gameState.hiddenCells }
 
 -- | Set a Hidden cell to be a Hidden cell with a bomb.
 setBomb :: Coord -> Map Coord CellState -> Map Coord CellState
@@ -190,7 +191,7 @@ revealCell config coord gameState = fromMaybe gameState do
       adjacentCellStates = catMaybes $ (\c -> lookup c gameState.grid) <$> adjacentCoords
       bombNeighbors = foldr (\adjacentState count -> count + countBomb adjacentState) 0 adjacentCellStates
       grid = Map.insert coord (Revealed { bombNeighbors }) gameState.grid
-      newGameState = { firstRevealDone: true, grid, lost: false, hiddenCells: gameState.hiddenCells - 1 }
+      newGameState = { bombsInitialized: true, grid, lost: false, hiddenCells: gameState.hiddenCells - 1 }
       newNewGameState = if (newGameState.hiddenCells <= config.qtyMines)
         then revealFlags newGameState
         else newGameState
